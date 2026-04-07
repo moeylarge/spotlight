@@ -1,4 +1,56 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+const STORAGE_KEY = 'peptide_report_history_v2';
+
+function encodeBase64Url(jsonValue) {
+  const bytes = new TextEncoder().encode(JSON.stringify(jsonValue));
+  const binary = String.fromCharCode(...bytes);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function decodeBase64Url(token) {
+  if (!token) return null;
+  const normalized = token.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+  try {
+    const binary = atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const json = new TextDecoder().decode(bytes);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function getSavedReports() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveReportToHistory(record) {
+  if (typeof window === 'undefined') return [];
+  const existing = getSavedReports();
+  const normalized = [
+    { ...record, id: record.id || `r_${Date.now()}` },
+    ...existing.filter((item) => item.id !== record.id),
+  ].slice(0, 12);
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+  return normalized;
+}
+
+function clearHistoryToken() {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('report')) return;
+  url.searchParams.delete('report');
+  window.history.replaceState({}, '', url.toString());
+}
 
 const TRACKS = {
   metabolic: {
@@ -183,15 +235,15 @@ const WORKFLOW = [
 const SUPPORT = [
   {
     label: 'Decision support only',
-    copy: 'No dosing recommendations. No diagnosis. Just a cleaner clinical conversation.',
+    copy: 'No dosing recommendations. No diagnosis. Only structured prep for an actual clinician visit.',
   },
   {
-    label: 'Safety-first framing',
-    copy: 'Critical risk flags can stop unsafe next steps and force professional review.',
+    label: 'Clinician-ready framing',
+    copy: 'Each report is formatted like an intake handoff and explicitly calls out what needs clinician review.',
   },
   {
-    label: 'Built for action',
-    copy: 'Output includes next-step priorities you can discuss with a clinician immediately.',
+    label: 'Safety-first gating',
+    copy: 'Critical medical flags create a safety gate so unsafe next steps are blocked by default.',
   },
 ];
 
@@ -262,6 +314,22 @@ function buildReport(answers, result) {
     return Array.isArray(value) ? value.length > 0 : Boolean(value);
   }).length + ' / ' + QUESTIONS.length);
   return lines.join('\n');
+}
+
+function buildSavedRecord(answers, result) {
+  const report = buildReport(answers, result);
+  return {
+    id: `r_${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    answers,
+    top: result.top?.id || null,
+    secondary: result.secondary?.id || null,
+    critical: result.critical,
+    riskProfile: result.riskProfile,
+    scores: result.scores,
+    report,
+    shareToken: encodeBase64Url({ answers, result: { top: result.top?.id, secondary: result.secondary?.id }, report }),
+  };
 }
 
 function Progress({ current, total }) {
@@ -366,9 +434,10 @@ function Landing({ onStart }) {
   );
 }
 
-function Quiz({ answers, setAnswers, step, setStep, onSubmit }) {
+function Quiz({ answers, setAnswers, step, setStep, onSubmit, hasCriticalRisk, criticalFlags }) {
   const current = QUESTIONS[step];
   const total = QUESTIONS.length;
+  const [acknowledged, setAcknowledged] = useState(false);
 
   const canContinue = (() => {
     const value = answers[current?.id];
@@ -396,6 +465,15 @@ function Quiz({ answers, setAnswers, step, setStep, onSubmit }) {
       return { ...prev, [questionId]: next };
     });
   };
+
+  useEffect(() => {
+    setAcknowledged(false);
+  }, [step, hasCriticalRisk, current?.id]);
+
+  const requiresSafetyConfirm = hasCriticalRisk && step === total - 1;
+  const canSubmit = canContinue && (!requiresSafetyConfirm || acknowledged);
+
+  const criticalItems = (criticalFlags || []).map((risk) => risk.text);
 
   return (
     <div className="container">
@@ -461,13 +539,35 @@ function Quiz({ answers, setAnswers, step, setStep, onSubmit }) {
               Continue
             </button>
           ) : (
+            <>
+              {requiresSafetyConfirm ? (
+                <div style={{ marginBottom: 10 }} className="card">
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: '1.2rem' }}>⚠</span>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>Critical safety gate active</div>
+                      <div className="small">Critical flags must be acknowledged before report generation.</div>
+                    </div>
+                  </div>
+                  <ul className="list" style={{ marginTop: 8 }}>
+                    {criticalItems.length
+                      ? criticalItems.map((item) => <li key={item}>• {item}</li>)
+                      : <li>No critical details found.</li>}
+                  </ul>
+                  <label style={{ marginTop: 10, display: 'flex', gap: 8, alignItems: 'center' }} className="small">
+                    <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
+                    I understand this is review-gated and I will only use this as a clinician discussion aid.
+                  </label>
+                </div>
+              ) : null}
             <button
               className="btn"
-              disabled={!canContinue}
-              onClick={() => canContinue && onSubmit(true)}
+              disabled={!canSubmit}
+              onClick={() => canSubmit && onSubmit()}
             >
-              Generate report
+              {requiresSafetyConfirm ? 'Confirm and generate gated report' : 'Generate report'}
             </button>
+            </>
           )}
         </div>
       </section>
@@ -475,7 +575,7 @@ function Quiz({ answers, setAnswers, step, setStep, onSubmit }) {
   );
 }
 
-function Results({ result, answers, copyReport, reset }) {
+function Results({ result, answers, copyReport, reset, copyShareLink, history, loadHistoryReport }) {
   const maxScore = result.top?.score || 1;
 
   return (
@@ -529,6 +629,27 @@ function Results({ result, answers, copyReport, reset }) {
             <div>• Re-run this intake after a follow-up when your treatment context changes.</div>
           </div>
           <button className="btn btn-full" onClick={copyReport} style={{ marginTop: 12 }}>Copy report</button>
+          <button className="btn btn-full" onClick={() => copyShareLink()} style={{ marginTop: 12 }}>Copy shareable report link</button>
+        </div>
+
+        <div className="card">
+          <h2>Saved local reports</h2>
+          <div className="small" style={{ marginTop: 8 }}>
+            {history.length === 0 ? (
+              <div>No local reports yet. Every completed report is saved here on this device.</div>
+            ) : (
+              history.map((item) => (
+                <div key={item.id} style={{ marginBottom: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ fontWeight: 600 }}>{new Date(item.createdAt).toLocaleString()}</div>
+                  <div style={{ marginTop: 4 }}>{TRACKS[item.top || 'metabolic']?.title || 'Top pathway'} / {TRACKS[item.secondary || 'metabolic']?.title || 'Secondary pathway'}</div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                    <button className="btn btn-outline" onClick={() => loadHistoryReport(item.id)}>Load</button>
+                    <button className="btn btn-outline" onClick={() => copyShareLink(item.id)}>Copy report link</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
 
         <div className="card">
@@ -557,13 +678,29 @@ export default function App() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState({ risk_flags: [] });
   const [submitted, setSubmitted] = useState(false);
+  const [history, setHistory] = useState(() => getSavedReports());
+  const [loadedReportId, setLoadedReportId] = useState(null);
 
   const result = useMemo(() => scoreAnswers(answers), [answers]);
+
+  useEffect(() => {
+    const shared = decodeBase64Url(new URLSearchParams(window.location.search).get('report'));
+    if (!shared) return;
+    const parsedAnswers = shared.answers;
+    const hasAnswers = parsedAnswers && typeof parsedAnswers === 'object';
+    if (!hasAnswers) return;
+    setAnswers(parsedAnswers);
+    setMode('results');
+    setSubmitted(true);
+    setLoadedReportId(shared.id || 'shared');
+    clearHistoryToken();
+  }, []);
 
   const startIntake = () => {
     setMode('quiz');
     setStep(0);
     setSubmitted(false);
+    setLoadedReportId(null);
   };
 
   const copyReport = async () => {
@@ -574,11 +711,51 @@ export default function App() {
     }
   };
 
+  const copyShareLink = async (reportId) => {
+    const report = reportId
+      ? history.find((item) => item.id === reportId)
+      : buildSavedRecord(answers, result);
+    if (!report || !navigator?.clipboard?.writeText) return;
+    const sharePayload = report.shareToken
+      ? decodeBase64Url(report.shareToken)
+      : null;
+    const safePayload = sharePayload || {
+      id: report.id,
+      createdAt: report.createdAt,
+      answers: report.answers,
+      report: report.report,
+      top: report.top,
+      secondary: report.secondary,
+    };
+    const link = `${window.location.origin}${window.location.pathname}?report=${encodeURIComponent(encodeBase64Url(safePayload))}`;
+    await navigator.clipboard.writeText(link);
+    alert('Share link copied to clipboard.');
+  };
+
+  const loadHistoryReport = (id) => {
+    const item = history.find((entry) => entry.id === id);
+    if (!item) return;
+    setAnswers(item.answers || {});
+    setMode('results');
+    setSubmitted(true);
+    setLoadedReportId(item.id);
+    setStep(QUESTIONS.length - 1);
+  };
+
+  const onSubmit = () => {
+    const nextRecord = buildSavedRecord(answers, result);
+    const updated = saveReportToHistory(nextRecord);
+    setHistory(updated);
+    setLoadedReportId(nextRecord.id);
+    setSubmitted(true);
+  };
+
   const reset = () => {
     setMode('landing');
     setStep(0);
     setAnswers({ risk_flags: [] });
     setSubmitted(false);
+    setLoadedReportId(null);
   };
 
   if (mode === 'quiz' && !submitted) {
@@ -589,7 +766,9 @@ export default function App() {
           setAnswers={setAnswers}
           step={step}
           setStep={setStep}
-          onSubmit={(value) => setSubmitted(value)}
+          onSubmit={onSubmit}
+          hasCriticalRisk={result.critical}
+          criticalFlags={result.riskProfile.filter((item) => item.severity === 'critical')}
         />
       </div>
     );
@@ -602,6 +781,9 @@ export default function App() {
           result={result}
           answers={answers}
           copyReport={copyReport}
+          copyShareLink={copyShareLink}
+          history={history}
+          loadHistoryReport={loadHistoryReport}
           reset={reset}
         />
       </div>
