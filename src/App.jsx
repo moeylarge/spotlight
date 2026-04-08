@@ -1,6 +1,94 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const STORAGE_KEY = 'peptide_report_history_v2';
+const LEAD_KEY = 'peptide_leads_v1';
+const ANALYTICS_KEY = 'peptide_analytics_events_v1';
+const ANALYTICS_ENDPOINT = import.meta.env.VITE_ANALYTICS_ENDPOINT || '';
+const PILOT_CHECKOUT_URL = import.meta.env.VITE_PILOT_CHECKOUT_URL || '';
+const CLINICIAN_CONTACT = 'moeylarge@gmail.com';
+
+function trackEvent(name, payload) {
+  if (typeof window === 'undefined') return;
+  const event = {
+    name,
+    at: new Date().toISOString(),
+    url: window.location.pathname,
+    ...payload,
+  };
+
+  if (ANALYTICS_ENDPOINT) {
+    fetch(ANALYTICS_ENDPOINT, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(event),
+      keepalive: true,
+    }).catch(() => {
+      const raw = window.localStorage.getItem(ANALYTICS_KEY);
+      const queue = raw ? JSON.parse(raw) : [];
+      queue.push(event);
+      window.localStorage.setItem(ANALYTICS_KEY, JSON.stringify(queue.slice(-200)));
+    });
+    return;
+  }
+
+  const raw = window.localStorage.getItem(ANALYTICS_KEY);
+  const queue = raw ? (() => {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  })() : [];
+  queue.push(event);
+  window.localStorage.setItem(ANALYTICS_KEY, JSON.stringify(queue.slice(-200)));
+}
+
+function getSavedLeads() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LEAD_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLead(record) {
+  if (typeof window === 'undefined') return [];
+  const existing = getSavedLeads();
+  const updated = [{ ...record, id: `lead_${Date.now()}` }, ...existing].slice(0, 50);
+  window.localStorage.setItem(LEAD_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+function buildHandoffMessage(answers, result, lead) {
+  const lines = [];
+  lines.push('Clinician handoff summary (decision-support intake)');
+  lines.push('');
+  if (lead?.name) lines.push(`Patient/Patient name: ${lead.name}`);
+  if (lead?.email) lines.push(`Contact email: ${lead.email}`);
+  if (lead?.ageRange) lines.push(`Age bracket: ${lead.ageRange}`);
+  lines.push(`Date: ${new Date().toLocaleString()}`);
+  lines.push(`Primary pathway: ${result.top?.title || 'Not determined'}`);
+  lines.push(`Secondary pathway: ${result.secondary?.title || 'Not determined'}`);
+  lines.push('');
+  lines.push('Risk flags:');
+  if (result.riskProfile.length) {
+    for (const risk of result.riskProfile) lines.push(`- ${risk.text} (${risk.severity})`);
+  } else {
+    lines.push('- No major risk flags selected.');
+  }
+  lines.push('');
+  lines.push('Score breakdown:');
+  for (const track of result.ranked) {
+    lines.push(`- ${track.title}: ${track.score}`);
+  }
+  lines.push('');
+  lines.push('Important safety note: not for diagnosis or prescribing; intended for clinician discussion only.');
+  return lines.join('\n');
+}
 
 function encodeBase64Url(jsonValue) {
   const bytes = new TextEncoder().encode(JSON.stringify(jsonValue));
@@ -358,7 +446,7 @@ function OptionButton({ active, onClick, children }) {
   );
 }
 
-function Landing({ onStart }) {
+function Landing({ onStart, consentGiven, setConsentGiven }) {
   return (
     <div className="container" style={{ maxWidth: '1000px' }}>
       <section className="card" style={{ marginTop: 8 }}>
@@ -375,9 +463,26 @@ function Landing({ onStart }) {
               This intake maps your goals, symptoms, and risk factors into the two most relevant discussion pathways and highlights critical safety flags.
             </p>
           </div>
-          <button className="btn" onClick={onStart}>
+          <button className="btn" onClick={onStart} disabled={!consentGiven}>
             Start assessment
           </button>
+        </div>
+      </section>
+
+      <section style={{ marginTop: 16 }}>
+        <div className="card">
+          <h2>Trust and safety baseline</h2>
+          <p>
+            This tool does not prescribe, diagnose, or replace care. It helps you have a cleaner first conversation with a licensed clinician.
+          </p>
+          <label className="small" style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={consentGiven}
+              onChange={(event) => setConsentGiven(event.target.checked)}
+            />
+            I understand this is decision-support only and not medical advice.
+          </label>
         </div>
       </section>
 
@@ -424,7 +529,7 @@ function Landing({ onStart }) {
             Start in under 90 seconds: structured questions, pathway scoring, and a copy-ready report with next-step prompts.
           </p>
           <div style={{ marginTop: 12 }}>
-            <button className="btn" onClick={onStart}>
+            <button className="btn" onClick={onStart} disabled={!consentGiven}>
               Start assessment
             </button>
           </div>
@@ -447,6 +552,11 @@ function Quiz({ answers, setAnswers, step, setStep, onSubmit, hasCriticalRisk, c
   })();
 
   const setSingle = (questionId, value) => {
+    trackEvent('quiz_question_answered', {
+      questionId,
+      selected: value,
+      type: 'single',
+    });
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
   };
 
@@ -454,7 +564,14 @@ function Quiz({ answers, setAnswers, step, setStep, onSubmit, hasCriticalRisk, c
     setAnswers((prev) => {
       const currentValues = Array.isArray(prev[questionId]) ? prev[questionId] : [];
       if (value === 'none') {
-        return { ...prev, [questionId]: currentValues.includes('none') ? [] : ['none'] };
+        const next = currentValues.includes('none') ? [] : ['none'];
+        trackEvent('quiz_question_answered', {
+          questionId,
+          selected: value,
+          type: 'multi',
+          totalSelected: next.length,
+        });
+        return { ...prev, [questionId]: next };
       }
 
       const withoutNone = currentValues.filter((v) => v !== 'none');
@@ -462,12 +579,25 @@ function Quiz({ answers, setAnswers, step, setStep, onSubmit, hasCriticalRisk, c
         ? withoutNone.filter((v) => v !== value)
         : [...withoutNone, value];
 
+      trackEvent('quiz_question_answered', {
+        questionId,
+        selected: value,
+        type: 'multi',
+        totalSelected: next.length,
+      });
+
       return { ...prev, [questionId]: next };
     });
   };
 
   useEffect(() => {
     setAcknowledged(false);
+    trackEvent('quiz_step_view', {
+      step: step + 1,
+      questionId: current?.id,
+      hasCriticalRisk,
+      totalSteps: total,
+    });
   }, [step, hasCriticalRisk, current?.id]);
 
   const requiresSafetyConfirm = hasCriticalRisk && step === total - 1;
@@ -524,7 +654,13 @@ function Quiz({ answers, setAnswers, step, setStep, onSubmit, hasCriticalRisk, c
         <div className="btn-row" style={{ marginTop: 16 }}>
           <button
             className="btn btn-outline"
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
+            onClick={() => {
+              trackEvent('quiz_step_back', {
+                step: step + 1,
+                questionId: current?.id,
+              });
+              setStep((s) => Math.max(0, s - 1));
+            }}
             disabled={step === 0}
           >
             Back
@@ -534,7 +670,15 @@ function Quiz({ answers, setAnswers, step, setStep, onSubmit, hasCriticalRisk, c
             <button
               className="btn"
               disabled={!canContinue}
-              onClick={() => canContinue && setStep((s) => Math.min(total - 1, s + 1))}
+              onClick={() => {
+                if (!canContinue) return;
+                trackEvent('quiz_step_next', {
+                  step: step + 1,
+                  questionId: current.id,
+                  totalSteps: total,
+                });
+                setStep((s) => Math.min(total - 1, s + 1));
+              }}
             >
               Continue
             </button>
@@ -560,16 +704,23 @@ function Quiz({ answers, setAnswers, step, setStep, onSubmit, hasCriticalRisk, c
                   </label>
                 </div>
               ) : null}
-            <button
-              className="btn"
-              disabled={!canSubmit}
-              onClick={() => canSubmit && onSubmit()}
-            >
-              {requiresSafetyConfirm ? 'Confirm and generate gated report' : 'Generate report'}
-            </button>
-            </>
-          )}
-        </div>
+                <button
+                  className="btn"
+                  disabled={!canSubmit}
+                  onClick={() => {
+                    if (!canSubmit) return;
+                  trackEvent('quiz_submit', {
+                    hasCriticalRisk,
+                    criticalCount: criticalItems.length,
+                  });
+                  onSubmit();
+                }}
+                >
+                  {requiresSafetyConfirm ? 'Confirm and generate gated report' : 'Generate report'}
+                </button>
+                </>
+              )}
+            </div>
       </section>
     </div>
   );
@@ -577,6 +728,45 @@ function Quiz({ answers, setAnswers, step, setStep, onSubmit, hasCriticalRisk, c
 
 function Results({ result, answers, copyReport, reset, copyShareLink, history, loadHistoryReport }) {
   const maxScore = result.top?.score || 1;
+  const [leadName, setLeadName] = useState('');
+  const [leadEmail, setLeadEmail] = useState('');
+  const [clinicianContact, setClinicianContact] = useState(CLINICIAN_CONTACT);
+  const [leadCaptured, setLeadCaptured] = useState(false);
+  const [savedLeads, setSavedLeads] = useState(() => getSavedLeads());
+
+  const handoffMessage = buildHandoffMessage(answers, result, {
+    name: leadName,
+    email: leadEmail,
+    ageRange: answers?.age || '',
+  });
+
+  const handoffMailTo = `mailto:${clinicianContact || CLINICIAN_CONTACT}?subject=${encodeURIComponent('Peptide discussion report handoff')}&body=${encodeURIComponent(handoffMessage)}`;
+
+  const submitLead = () => {
+    const normalizedEmail = (leadEmail || '').trim().toLowerCase();
+    if (!normalizedEmail) return alert('Add an email if you want to request pilot contact.');
+    const nextLeads = saveLead({
+      name: (leadName || '').trim(),
+      email: normalizedEmail,
+      clinicianContact: clinicianContact || CLINICIAN_CONTACT,
+      trackTop: result.top?.id,
+      trackSecondary: result.secondary?.id,
+      createdAt: new Date().toISOString(),
+      critical: result.critical,
+    });
+    setSavedLeads(nextLeads);
+    trackEvent('lead_capture', { email: normalizedEmail, trackTop: result.top?.id });
+    setLeadCaptured(true);
+    alert('Lead saved locally. We can use this format for your pilot CRM in next pass.');
+  };
+
+  const copyHandoff = async () => {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(handoffMessage);
+      trackEvent('handoff_copy', { top: result.top?.id, secondary: result.secondary?.id });
+      alert('Handoff message copied.');
+    }
+  };
 
   return (
     <div className="container split" style={{ alignItems: 'start' }}>
@@ -618,9 +808,49 @@ function Results({ result, answers, copyReport, reset, copyShareLink, history, l
             <p key={`${risk.text}`} style={{ margin: '8px 0' }}>• {risk.text}</p>
           ))}
         </div>
+
+        <div className="card" style={{ marginTop: 12 }}>
+          <h2>Compliance and scope</h2>
+          <p className="small">
+            This output is for clinical conversation preparation only. Do not use it to self-prescribe, delay care, or make immediate treatment changes.
+          </p>
+        </div>
       </section>
 
       <aside style={{ display: 'grid', gap: 12 }}>
+        <div className="card">
+          <h2>Doctor handoff + lead capture</h2>
+          <div className="small" style={{ marginTop: 8 }}>
+            <div style={{ marginBottom: 8 }}>Name</div>
+            <input
+              value={leadName}
+              onChange={(event) => setLeadName(event.target.value)}
+              placeholder="Optional"
+              style={{ width: '100%', marginBottom: 10 }}
+            />
+            <div style={{ marginBottom: 8 }}>Email</div>
+            <input
+              value={leadEmail}
+              onChange={(event) => setLeadEmail(event.target.value)}
+              placeholder="your@email.com"
+              style={{ width: '100%', marginBottom: 10 }}
+            />
+            <div style={{ marginBottom: 8 }}>Clinician email (optional)</div>
+            <input
+              value={clinicianContact}
+              onChange={(event) => setClinicianContact(event.target.value)}
+              placeholder={CLINICIAN_CONTACT}
+              style={{ width: '100%', marginBottom: 10 }}
+            />
+            <div style={{ display: 'grid', gap: 8 }}>
+              <button className="btn btn-full" onClick={copyHandoff}>Copy handoff message</button>
+              <a className="btn btn-full btn-outline" href={handoffMailTo} onClick={() => trackEvent('handoff_email_open', { top: result.top?.id })}>Email handoff to clinician</a>
+            </div>
+            <button className="btn btn-full" onClick={submitLead} style={{ marginTop: 8 }}>Save lead for paid pilot</button>
+            {leadCaptured ? <div style={{ marginTop: 8, color: '#9ca3af' }} className="small">Pilot lead captured locally.</div> : null}
+          </div>
+        </div>
+
         <div className="card">
           <h2>Next steps</h2>
           <div className="small" style={{ marginTop: 8 }}>
@@ -630,6 +860,32 @@ function Results({ result, answers, copyReport, reset, copyShareLink, history, l
           </div>
           <button className="btn btn-full" onClick={copyReport} style={{ marginTop: 12 }}>Copy report</button>
           <button className="btn btn-full" onClick={() => copyShareLink()} style={{ marginTop: 12 }}>Copy shareable report link</button>
+          {PILOT_CHECKOUT_URL ? (
+            <a
+              href={PILOT_CHECKOUT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-full"
+              onClick={() => trackEvent('pilot_checkout_click', { top: result.top?.id })}
+              style={{ marginTop: 12, textAlign: 'center', display: 'inline-block' }}
+            >
+              Start one-click paid pilot
+            </a>
+          ) : (
+            <div className="small" style={{ marginTop: 12 }}>Paid pilot checkout URL not set. Add <code>VITE_PILOT_CHECKOUT_URL</code> in Vercel env.</div>
+          )}
+        </div>
+
+        <div className="card">
+          <h2>Pilot leads captured locally</h2>
+          <div className="small" style={{ marginTop: 8 }}>
+            {savedLeads.length === 0 ? 'No leads yet.' : `${savedLeads.length} lead${savedLeads.length === 1 ? '' : 's'} captured for pilot.`}
+            {savedLeads.slice(0, 3).map((lead) => (
+              <div key={lead.id} style={{ marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                {lead.name || 'Unnamed'} — {lead.email}
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="card">
@@ -680,10 +936,12 @@ export default function App() {
   const [submitted, setSubmitted] = useState(false);
   const [history, setHistory] = useState(() => getSavedReports());
   const [loadedReportId, setLoadedReportId] = useState(null);
+  const [consentGiven, setConsentGiven] = useState(false);
 
   const result = useMemo(() => scoreAnswers(answers), [answers]);
 
   useEffect(() => {
+    trackEvent('landing_viewed', { path: window.location.pathname });
     const shared = decodeBase64Url(new URLSearchParams(window.location.search).get('report'));
     if (!shared) return;
     const parsedAnswers = shared.answers;
@@ -697,6 +955,8 @@ export default function App() {
   }, []);
 
   const startIntake = () => {
+    if (!consentGiven) return;
+    trackEvent('assessment_started', { route: 'quiz' });
     setMode('quiz');
     setStep(0);
     setSubmitted(false);
@@ -707,6 +967,7 @@ export default function App() {
     const report = buildReport(answers, result);
     if (navigator?.clipboard?.writeText) {
       await navigator.clipboard.writeText(report);
+      trackEvent('report_copy', { top: result.top?.id, secondary: result.secondary?.id });
       alert('Report copied to clipboard.');
     }
   };
@@ -729,12 +990,14 @@ export default function App() {
     };
     const link = `${window.location.origin}${window.location.pathname}?report=${encodeURIComponent(encodeBase64Url(safePayload))}`;
     await navigator.clipboard.writeText(link);
+    trackEvent('share_link_copy', { reportId: report?.id, source: reportId ? 'history' : 'current' });
     alert('Share link copied to clipboard.');
   };
 
   const loadHistoryReport = (id) => {
     const item = history.find((entry) => entry.id === id);
     if (!item) return;
+    trackEvent('history_load', { reportId: id });
     setAnswers(item.answers || {});
     setMode('results');
     setSubmitted(true);
@@ -743,6 +1006,11 @@ export default function App() {
   };
 
   const onSubmit = () => {
+    trackEvent('report_generated', {
+      top: result.top?.id,
+      secondary: result.secondary?.id,
+      critical: result.critical,
+    });
     const nextRecord = buildSavedRecord(answers, result);
     const updated = saveReportToHistory(nextRecord);
     setHistory(updated);
@@ -756,6 +1024,7 @@ export default function App() {
     setAnswers({ risk_flags: [] });
     setSubmitted(false);
     setLoadedReportId(null);
+    setConsentGiven(false);
   };
 
   if (mode === 'quiz' && !submitted) {
@@ -792,7 +1061,7 @@ export default function App() {
 
   return (
     <div className="page">
-      <Landing onStart={startIntake} />
+      <Landing onStart={startIntake} consentGiven={consentGiven} setConsentGiven={setConsentGiven} />
     </div>
   );
 }
