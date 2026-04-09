@@ -49,7 +49,7 @@ export async function getCurrentSessionIdentity(): Promise<{ user: DbUser | null
         handle: user.user_metadata?.handle ?? user.email ?? user.id,
         display_name: user.user_metadata?.name ?? null,
         created_at: user.created_at,
-        updated_at: user.updated_at,
+        updated_at: user.updated_at ?? user.created_at,
       };
 
   const { data: profile } = await supabase.from("profiles").select("*").eq("user_id", mappedUser.id).maybeSingle();
