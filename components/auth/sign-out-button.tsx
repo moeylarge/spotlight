@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { signOutFromClient } from "@/lib/data/spotlight";
+import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 
 export function SignOutButton() {
@@ -12,8 +12,9 @@ export function SignOutButton() {
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
-    const result = await signOutFromClient();
-    if (result === "ok") {
+    const supabase = createBrowserSupabaseClient();
+    const { error } = await supabase.auth.signOut();
+    if (!error) {
       router.refresh();
     }
     setIsSigningOut(false);

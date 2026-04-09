@@ -10,7 +10,6 @@ import {
   type Clip,
   type Ranking,
 } from "@/lib/types/spotlight";
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type SpotlightQueryError = {
@@ -189,10 +188,4 @@ export async function getRanking(userId?: string): Promise<Ranking[]> {
   }
 
   return (data ?? []) as Ranking[];
-}
-
-export async function signOutFromClient(): Promise<"ok" | "error"> {
-  const supabase = createBrowserSupabaseClient();
-  const { error } = await supabase.auth.signOut();
-  return error ? "error" : "ok";
 }
