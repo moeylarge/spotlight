@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
-export function createServerSupabaseClient() {
-  const cookieStore = cookies();
+export async function createServerSupabaseClient() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
@@ -17,7 +17,11 @@ export function createServerSupabaseClient() {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach((cookie) => {
-            cookieStore.set(cookie.name, cookie.value, cookie.options);
+            try {
+              cookieStore.set(cookie.name, cookie.value, cookie.options);
+            } catch {
+              // Ignore cookie writes in contexts where response mutation is not available.
+            }
           });
         },
       },

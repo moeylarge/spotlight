@@ -22,7 +22,7 @@ function unwrap<T>(value: T | null | undefined): T | null {
 }
 
 export async function getCurrentSessionIdentity(): Promise<{ user: DbUser | null; profile: Profile | null }> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
     error,
@@ -59,7 +59,7 @@ export async function getCurrentSessionIdentity(): Promise<{ user: DbUser | null
 }
 
 export async function getAuthenticatedUser() {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   return supabase.auth.getUser();
 }
 
@@ -69,7 +69,7 @@ export async function getCurrentProfile(): Promise<{ profile: Profile | null; us
 }
 
 export async function getShows(): Promise<Show[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("shows")
     .select("*")
@@ -83,7 +83,7 @@ export async function getShows(): Promise<Show[]> {
 }
 
 export async function getShowBySlug(slug: string): Promise<Show | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.from("shows").select("*").eq("slug", slug).maybeSingle();
 
   if (error) {
@@ -94,7 +94,7 @@ export async function getShowBySlug(slug: string): Promise<Show | null> {
 }
 
 export async function getQueueForShow(showId: string): Promise<QueueEntry[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("queue_entries")
     .select("*")
@@ -109,7 +109,7 @@ export async function getQueueForShow(showId: string): Promise<QueueEntry[]> {
 }
 
 export async function getParticipants(showId: string): Promise<ShowParticipant[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.from("show_participants").select("*").eq("show_id", showId);
 
   if (error) {
@@ -120,7 +120,7 @@ export async function getParticipants(showId: string): Promise<ShowParticipant[]
 }
 
 export async function getRoundByShow(showId: string): Promise<Round | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("rounds")
     .select("*")
@@ -138,7 +138,7 @@ export async function getRoundByShow(showId: string): Promise<Round | null> {
 }
 
 export async function getVotesForRound(roundId: string): Promise<Vote[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.from("votes").select("*").eq("round_id", roundId);
 
   if (error) {
@@ -149,7 +149,7 @@ export async function getVotesForRound(roundId: string): Promise<Vote[]> {
 }
 
 export async function getResultForRound(roundId: string): Promise<Result | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.from("results").select("*").eq("round_id", roundId).maybeSingle();
 
   if (error) {
@@ -160,7 +160,7 @@ export async function getResultForRound(roundId: string): Promise<Result | null>
 }
 
 export async function getClipsByShow(showId: string): Promise<Clip[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("clips")
     .select("*")
@@ -175,7 +175,7 @@ export async function getClipsByShow(showId: string): Promise<Clip[]> {
 }
 
 export async function getRanking(userId?: string): Promise<Ranking[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = await createServerSupabaseClient();
   let query = supabase.from("rankings").select("*");
 
   if (userId) {
