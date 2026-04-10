@@ -12,6 +12,7 @@ type ProofClipRailProps = {
   includeAction?: boolean;
   actionLabel?: string;
   actionHref?: string;
+  maxClips?: number;
 };
 
 function outcomeCopy(outcome: PerformanceClip["outcome"]) {
@@ -34,12 +35,14 @@ export function ProofClipRail({
   includeAction = true,
   actionLabel = "Open in arena context",
   actionHref = "/shows/main-event",
+  maxClips = 6,
 }: ProofClipRailProps) {
-  const [selectedClipId, setSelectedClipId] = useState(clips[0]?.id);
+  const visibleClips = useMemo(() => clips.slice(0, maxClips), [clips, maxClips]);
+  const [selectedClipId, setSelectedClipId] = useState(visibleClips[0]?.id);
 
   const selectedClip = useMemo(
-    () => clips.find((clip) => clip.id === selectedClipId) ?? clips[0],
-    [clips, selectedClipId],
+    () => visibleClips.find((clip) => clip.id === selectedClipId) ?? visibleClips[0],
+    [visibleClips, selectedClipId],
   );
 
   if (!selectedClip) {
@@ -49,7 +52,7 @@ export function ProofClipRail({
   return (
     <div className="space-y-3">
       <div className="rail">
-        {clips.map((clip) => (
+        {visibleClips.map((clip) => (
           <button
             key={clip.id}
             type="button"
@@ -62,14 +65,11 @@ export function ProofClipRail({
             }`}
           >
             <div className="overflow-hidden rounded-[1.1rem]">
-              <div className="relative h-36 bg-gradient-to-br from-black/75 via-black/45 to-black/30 p-4">
+              <div className="relative h-32 bg-gradient-to-br from-black/75 via-black/45 to-black/30 p-4">
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/12" />
                 <PlayCircle className="absolute right-3 top-3 h-5 w-5 text-white/85" />
                 <div className="relative z-10 flex flex-wrap items-center gap-2">
                   <span className="inline-flex rounded-md bg-black/55 px-2 py-1 text-[11px] text-white">{clip.runtime}</span>
-                  <span className="inline-flex rounded-md border border-white/25 bg-black/50 px-2 py-1 text-[11px] uppercase tracking-[0.15em] text-white/85">
-                    {clip.category}
-                  </span>
                 </div>
                 <div className="relative absolute inset-x-4 bottom-4 z-10">
                   <p className="text-xs uppercase tracking-[0.16em] text-white/75">{clip.show}</p>
@@ -84,7 +84,7 @@ export function ProofClipRail({
                   <span>{clip.heat} Heat</span>
                   <span className="inline-flex items-center gap-1">
                     <Waves className="h-3.5 w-3.5 text-accent" />
-                    {clip.outcome}
+                    <span className="whitespace-nowrap">{outcomeCopy(clip.outcome)}</span>
                   </span>
                 </p>
               </div>
@@ -93,9 +93,9 @@ export function ProofClipRail({
         ))}
       </div>
 
-      <article className="min-h-[11.25rem] rounded-[1.1rem] border border-white/12 bg-black/44 p-4">
+      <article className="min-h-[11.25rem] rounded-[1.1rem] bg-black/34 p-4">
         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Proof now</p>
-        <h3 className="mt-2 text-lg font-semibold leading-tight text-foreground line-clamp-2 min-h-[2.75rem]">
+        <h3 className="mt-2 text-lg font-semibold leading-tight text-foreground line-clamp-1 min-h-[2.25rem]">
           {selectedClip.title}
         </h3>
         <p className="text-xs uppercase tracking-[0.16em] text-accent">

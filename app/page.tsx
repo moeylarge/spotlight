@@ -1,12 +1,8 @@
 import Link from "next/link";
 import {
   ArrowRight,
-  ArrowUpRight,
   CalendarDays,
-  Mic2,
-  Rocket,
   Timer,
-  Video,
 } from "lucide-react";
 
 import { ProofClipRail } from "@/components/showcase/proof-clip-rail";
@@ -93,7 +89,7 @@ const queueDeck = liveNow.slice(1, 3);
 export default function HomePage() {
   return (
     <div className="spotlight-flow">
-      <section className="hero-surface relative overflow-hidden rounded-[2rem] border border-white/[0.12] bg-black/45 p-7 md:p-12">
+      <section className="hero-surface relative overflow-hidden rounded-[2rem] bg-black/45 p-7 md:p-12">
         <div className="absolute inset-0 bg-gradient-to-r from-black/65 via-black/30 to-black/60" />
         <div className="relative grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
           <div className="space-y-6">
@@ -114,27 +110,30 @@ export default function HomePage() {
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="w-full sm:w-auto">
-                <Link href="/shows" aria-label="Enter queue for tonight">
-                  Try to get on stage
-                  <Rocket className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
+              <Link href="/shows" className="inline-flex items-center text-sm uppercase tracking-[0.16em] text-foreground/85 transition hover:text-white">
+                Enter stage queue
+              </Link>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Show Start</p>
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Audience seats</p>
-              <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Turn length</p>
-              <p className="text-2xl font-semibold text-foreground">Tonight, 8:00 PM PT</p>
-              <p className="text-2xl font-semibold text-foreground">3 live / 12 queued</p>
-              <p className="text-2xl font-semibold text-foreground">60s max</p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <p className="stat-ticker">
+                <span>Show start</span>
+                <span>Tonight, 8:00 PM PT</span>
+              </p>
+              <p className="stat-ticker">
+                <span>Queue</span>
+                <span>3 live / 12 queued</span>
+              </p>
+              <p className="stat-ticker">
+                <span>Turn length</span>
+                <span>60s max</span>
+              </p>
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-[1.5rem] border border-white/[0.14] bg-black/45 p-5">
+          <div className="relative overflow-hidden rounded-[1.5rem] bg-black/40 p-5">
             <p className="text-xs uppercase tracking-[0.18em] text-accent">Main Stage Feed</p>
-            <div className="mt-4 grid gap-5">
+            <div className="mt-4 grid gap-4">
               <div className="flex items-center justify-between rounded-[1.1rem] border border-primary/30 bg-gradient-to-r from-primary/20 via-primary/5 to-transparent p-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.15em] text-primary">On Stage</p>
@@ -144,20 +143,18 @@ export default function HomePage() {
                 <p className="live-pulse text-xs uppercase tracking-[0.14em] text-primary">LIVE</p>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-xl bg-black/45 border border-white/10 p-3 backdrop-blur">
+                <div className="rounded-xl bg-black/30 p-3">
                   <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Host call</p>
                   <p className="mt-2 text-base font-semibold text-foreground">Lane {featuredShow.lane} • pressure rising</p>
                 </div>
-                <div className="rounded-xl bg-black/45 border border-white/10 p-3 backdrop-blur">
+                <div className="rounded-xl bg-black/30 p-3">
                   <p className="text-xs uppercase tracking-[0.12em] text-muted-foreground">Audience</p>
                   <p className="mt-2 text-base font-semibold text-foreground">{featuredShow.audience} active</p>
                 </div>
               </div>
-              <div className="rounded-xl border border-white/12 bg-black/55 p-3">
-                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Round signal</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{featuredShow.turn}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{featuredShow.hostCue}</p>
-              </div>
+              <p className="rounded-xl bg-black/45 p-3 text-sm text-muted-foreground">
+                Turn timer {featuredShow.turn} — {featuredShow.hostCue}
+              </p>
             </div>
             <div className="mt-4 grid grid-cols-3 gap-3">
               <div className="h-1.5 rounded-full bg-white/10">
@@ -177,21 +174,18 @@ export default function HomePage() {
       </section>
 
       <section className="space-y-4">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="section-title">Top live now</p>
             <h2 className="section-heading mt-1">Primary heat from the arena</h2>
           </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/shows">
-              Open floor map
-              <ArrowUpRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          <Link href="/shows" className="text-xs uppercase tracking-[0.16em] text-foreground/80 transition hover:text-white">
+            Open floor map
+          </Link>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-[1.45fr_0.9fr]">
-          <article className="relative overflow-hidden rounded-[1.5rem] border border-primary/30 bg-[linear-gradient(130deg,_hsla(14,100%,62%,0.16)_0%,_hsla(226,24%,10%,0.9)_45%,_hsla(224,26%,7%,0.95)_100%)] p-5">
+          <article className="relative overflow-hidden rounded-[1.5rem] bg-[linear-gradient(130deg,_hsla(14,100%,62%,0.16)_0%,_hsla(226,24%,10%,0.9)_45%,_hsla(224,26%,7%,0.95)_100%)] p-5">
             <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Stage lead</p>
             <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -204,16 +198,16 @@ export default function HomePage() {
               <p className="live-pulse text-sm text-primary">Live feed active</p>
             </div>
             <p className="mt-6 text-sm text-muted-foreground">{featuredShow.hostCue}</p>
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-white/12 bg-black/35 p-3">
+            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl bg-black/35 p-3">
                 <p className="text-xs uppercase tracking-[0.13em] text-muted-foreground">Judges</p>
-                <p className="mt-1 text-lg font-semibold text-foreground">{featuredShow.judges}</p>
+                <p className="mt-1 text-lg font-semibold text-foreground">{featuredShow.judges} judges</p>
               </div>
-              <div className="rounded-xl border border-white/12 bg-black/35 p-3">
+              <div className="rounded-xl bg-black/35 p-3">
                 <p className="text-xs uppercase tracking-[0.13em] text-muted-foreground">Audience</p>
                 <p className="mt-1 text-lg font-semibold text-foreground">{featuredShow.audience}</p>
               </div>
-              <div className="rounded-xl border border-white/12 bg-black/35 p-3">
+              <div className="rounded-xl bg-black/35 p-3">
                 <p className="text-xs uppercase tracking-[0.13em] text-muted-foreground">Turn</p>
                 <p className="mt-1 text-lg font-semibold text-foreground">{featuredShow.turn}</p>
               </div>
@@ -224,64 +218,47 @@ export default function HomePage() {
             {queueDeck.map((contestant) => (
               <div
                 key={contestant.id}
-                className="rounded-xl border border-white/10 bg-black/35 px-4 py-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:ring-offset-2 focus-visible:ring-offset-black/35"
+                className="grid gap-1 rounded-xl bg-black/32 px-4 py-3 transition"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Lane {contestant.lane}</p>
-                  <p className="text-xs uppercase tracking-[0.16em] text-accent">
-                    {contestant.liveNow ? "LIVE" : "RECENT"}
-                  </p>
-                </div>
-                <p className="mt-1 text-xl font-semibold text-foreground">{contestant.performer}</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  {contestant.show} • {contestant.category} • Score {contestant.score}
+                <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                  Lane {contestant.lane}
                 </p>
+                <p className="mt-1 text-xl font-semibold text-foreground">{contestant.performer}</p>
+                <p className="text-sm text-muted-foreground">{contestant.show} • {contestant.category}</p>
               </div>
             ))}
-            <Button asChild size="sm" variant="outline" className="w-full rounded-xl border-white/22">
-              <Link href="/shows">
-                Open stage queue
-                <ArrowRight className="ml-2 h-3.5 w-3.5" />
-              </Link>
-            </Button>
           </div>
         </div>
       </section>
 
       <section className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <p className="section-title">Trending clips</p>
             <h2 className="section-heading mt-1">Clips that moved the room</h2>
           </div>
-          <Button asChild variant="outline" size="sm">
-            <Link href="/clips">
-              Full clip wall
-              <ArrowUpRight className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
         </div>
-        <ProofClipRail clips={performanceClips} />
+        <ProofClipRail clips={performanceClips} maxClips={3} />
+        <div className="flex justify-end">
+          <Link href="/clips" className="text-xs uppercase tracking-[0.16em] text-muted-foreground transition hover:text-white">
+            Open clip wall
+          </Link>
+        </div>
       </section>
 
       <section className="space-y-4">
-        <p className="section-title">Categories</p>
-        <h2 className="section-heading mt-1">Tonight&apos;s competition lanes</h2>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          {categories.map((category, index) => (
+        <p className="section-title">Competition lanes</p>
+        <h2 className="section-heading mt-1">Tonight&apos;s strongest categories</h2>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {categories.slice(0, 4).map((category, index) => (
             <article
               key={category.label}
-              className={`rounded-2xl border px-4 py-4 transition-colors hover:border-white/22 hover:bg-black/40 ${
+              className={`rounded-2xl border border-white/8 bg-black/25 px-4 py-4 transition-colors hover:bg-black/40 ${
                 index % 2 === 0 ? "border-primary/35 bg-black/30" : "border-white/10 bg-black/22"
               }`}
             >
-              <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">Lane {index + 1}</p>
               <h3 className="mt-2 text-2xl">{category.label}</h3>
               <p className="mt-1 text-sm text-muted-foreground">{category.stat}</p>
-              <p className="mt-5 flex items-center gap-2 text-sm text-foreground">
-                <Mic2 className="h-4 w-4 text-accent" />
-                {category.tone}
-              </p>
             </article>
           ))}
         </div>
@@ -291,21 +268,18 @@ export default function HomePage() {
         <div className="surface-panel-strong p-6">
           <p className="section-title">Tonight&apos;s lineup</p>
           <h2 className="section-heading mt-1 text-4xl md:text-5xl">What is about to hit</h2>
-          <div className="mt-5 divide-y divide-white/[0.12]">
+          <div className="mt-5 space-y-2">
             {schedule.map((entry) => (
               <div
                 key={entry.title}
-                className="grid gap-1.5 px-1 py-3 md:grid-cols-[0.8fr_1.5fr_1fr] md:items-center"
+                className="grid gap-1.5 rounded-lg bg-black/32 p-3 sm:grid-cols-[0.8fr_1.5fr_1fr]"
               >
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <CalendarDays className="h-4 w-4 text-accent" />
                   {entry.time}
                 </p>
                 <p className="font-semibold text-foreground">{entry.title}</p>
-                <div className="flex items-center justify-between gap-3 text-xs">
-                  <p className="text-sm text-muted-foreground">{entry.viewers} expected</p>
-                  <p className="uppercase tracking-[0.14em] text-accent">{entry.state}</p>
-                </div>
+                <p className="text-sm text-accent">{entry.state}</p>
               </div>
             ))}
           </div>
@@ -316,10 +290,11 @@ export default function HomePage() {
           <h2 className="section-heading mt-1 text-4xl md:text-4xl">Momentum board</h2>
           <div className="mt-5 space-y-3">
             {leaderboardStandings.map((entry) => (
-              <div key={entry.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 text-sm">
-                <p className="w-8 rounded-md bg-black/30 px-2 py-1 text-center font-bold">{entry.rank}</p>
+              <div key={entry.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-lg bg-black/25 p-2 text-sm">
                 <div>
-                  <p className="font-medium text-foreground">{entry.name}</p>
+                  <p className="font-medium text-foreground">
+                    {entry.rank}. {entry.name}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     <span className="font-semibold text-accent">{competitionBandLabel(entry.tier)}</span> · {formatRecord(entry.wins, entry.losses)} · {entry.statusLine}
                   </p>
@@ -332,9 +307,6 @@ export default function HomePage() {
                 </p>
               </div>
             ))}
-            <Button asChild size="sm" className="mt-2 w-full" variant="outline">
-              <Link href="/clips">See full board</Link>
-            </Button>
           </div>
         </div>
       </section>
@@ -359,12 +331,9 @@ export default function HomePage() {
                 <Timer className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href="/shows/main-event">
-                Watch main feed
-                <Video className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
+            <Link href="/shows/main-event" className="inline-flex items-center justify-center rounded-lg border border-white/18 px-4 py-2 text-xs uppercase tracking-[0.16em] text-muted-foreground transition hover:border-white/35 hover:text-white">
+              Watch main feed
+            </Link>
           </div>
         </div>
       </section>
